@@ -3,7 +3,6 @@ config ABK_EBPF_ROOT
 	depends on BPF && BPF_SYSCALL
 	select BPF_LSM
 	help
-	  Experimental helper for an eBPF-assisted root PoC on Android GKI.
-	  This keeps the privileged primitive in a small in-tree module while
-	  policy and auditing can live in eBPF programs loaded by a trusted
-	  daemon.
+	  Experimental audit-only control plane for an eBPF-assisted root PoC
+	  on Android GKI. This exposes grant metadata through /dev without
+	  mutating credentials or requiring /system-side helper binaries.

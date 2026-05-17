@@ -1,13 +1,13 @@
 # eBPF_Hook
 
-Android 14 / GKI 6.1.75 eBPF-assisted root PoC.
+Android 14 / GKI 6.1.75 audit-only eBPF root PoC.
 
-This repository reuses the ABK GKI workflow and injects a local module that:
+This repository builds a boot-safe kernel experiment that:
 
-- adds a minimal in-kernel root control plane under `security/abk_ebpf_root/`
-- stages an `abkebpfd` loader, `abksu` helper, init rc, and sepolicy samples
-- carries a sample BPF LSM program for audit/policy scaffolding
-- optionally chains `ABK_control_module` in `before_build`
+- adds a minimal in-kernel control plane under `security/abk_ebpf_root/`
+- exposes grant management only through `/dev/abk_ebpf_rootctl`
+- carries a sample BPF LSM program for audit and grant matching scaffolding
+- avoids KernelSU compatibility, `/system` payloads, and boot-time helpers
 
 ## Entry points
 
@@ -17,14 +17,9 @@ This repository reuses the ABK GKI workflow and injects a local module that:
 - BPF sample: `bpf/abk_root.bpf.c`
 - Architecture notes: `docs/architecture.md`
 
-## Trusted manager defaults
-
-- Package: `com.abk.kernel`
-- Cert size: `1407`
-- Cert SHA-256: `34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16`
-
 ## Notes
 
 - The first target is fixed to `android14-6.1.75` with patch level `2024-05`.
-- The PoC keeps the privileged state transition in a tiny in-tree kernel module.
+- The in-kernel component is audit-only and does not mutate credentials.
 - eBPF is used for hook placement, audit, and future grant matching.
+- No executables are installed to `/system`.

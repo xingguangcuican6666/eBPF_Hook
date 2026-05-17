@@ -8,7 +8,6 @@
 #include <uapi/linux/abk_ebpf_root_uapi.h>
 
 bool abk_bpf_is_granted(kuid_t uid, const char *comm);
-int abk_bpf_escalate_current(__u32 profile_id);
 long abk_ebpf_root_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
 #endif

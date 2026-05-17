@@ -4,10 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 KERNEL_ROOT="${KERNEL_ROOT:?KERNEL_ROOT is required}"
 DEFCONFIG="${DEFCONFIG:?DEFCONFIG is required}"
-ANYKERNEL3="${ANYKERNEL3:-}"
-MANAGER_PACKAGE="${ABK_MANAGER_PACKAGE:-com.abk.kernel}"
-MANAGER_CERT_SIZE="${ABK_MANAGER_CERT_SIZE:-1407}"
-MANAGER_CERT_SHA256="${ABK_MANAGER_CERT_SHA256:-34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16}"
 
 if [ -d "$KERNEL_ROOT/common/security" ]; then
   COMMON_ROOT="$KERNEL_ROOT/common"
@@ -23,8 +19,12 @@ INCLUDE_DIR="$COMMON_ROOT/include/linux"
 UAPI_INCLUDE_DIR="$COMMON_ROOT/include/uapi/linux"
 MODULE_DIR="$SECURITY_DIR/abk_ebpf_root"
 STAGING_DIR="$KERNEL_ROOT/out/abk-ebpf-root"
+STAGING_BPF_DIR="$STAGING_DIR/bpf"
+STAGING_DOC_DIR="$STAGING_DIR/docs"
+STAGING_INCLUDE_DIR="$STAGING_DIR/include"
 
-mkdir -p "$MODULE_DIR" "$UAPI_INCLUDE_DIR" "$INCLUDE_DIR" "$STAGING_DIR"
+mkdir -p "$MODULE_DIR" "$UAPI_INCLUDE_DIR" "$INCLUDE_DIR" \
+  "$STAGING_BPF_DIR" "$STAGING_DOC_DIR" "$STAGING_INCLUDE_DIR"
 
 install -m 0644 "$ROOT_DIR/src/kernel/abk_ebpf_root.c" "$MODULE_DIR/abk_ebpf_root.c"
 install -m 0644 "$ROOT_DIR/src/kernel/Kconfig" "$MODULE_DIR/Kconfig"
@@ -57,7 +57,6 @@ for cfg in \
   'CONFIG_BPF=y' \
   'CONFIG_BPF_SYSCALL=y' \
   'CONFIG_BPF_JIT=y' \
-  'CONFIG_CGROUP_BPF=y' \
   'CONFIG_BPF_EVENTS=y' \
   'CONFIG_BPF_LSM=y' \
   'CONFIG_DEBUG_INFO_BTF=y' \
@@ -66,27 +65,19 @@ do
   append_once "$cfg" "$DEFCONFIG"
 done
 
-cat > "$STAGING_DIR/manager_identity.env" <<EOF
-ABK_MANAGER_PACKAGE=$MANAGER_PACKAGE
-ABK_MANAGER_CERT_SIZE=$MANAGER_CERT_SIZE
-ABK_MANAGER_CERT_SHA256=$MANAGER_CERT_SHA256
+install -m 0644 "$ROOT_DIR/bpf/abk_root.bpf.c" "$STAGING_BPF_DIR/abk_root.bpf.c"
+install -m 0644 "$ROOT_DIR/docs/architecture.md" "$STAGING_DOC_DIR/architecture.md"
+install -m 0644 "$ROOT_DIR/include/abk_ebpf_root_uapi.h" "$STAGING_INCLUDE_DIR/abk_ebpf_root_uapi.h"
+
+cat > "$STAGING_DIR/README.txt" <<'EOF'
+ABK eBPF root staging assets
+
+- bpf/abk_root.bpf.c: audit-only BPF sample
+- docs/architecture.md: design notes
+- include/abk_ebpf_root_uapi.h: userspace ioctl definitions
+
+This staging directory intentionally contains no /system executables,
+no init scripts, and no SELinux policy payloads.
 EOF
-
-install -m 0755 "$ROOT_DIR/daemon/abkebpfd.sh" "$STAGING_DIR/abkebpfd"
-install -m 0755 "$ROOT_DIR/daemon/abksu.sh" "$STAGING_DIR/abksu"
-install -m 0644 "$ROOT_DIR/init/abkebpfd.rc" "$STAGING_DIR/abkebpfd.rc"
-install -m 0644 "$ROOT_DIR/sepolicy/abkebpfd.te" "$STAGING_DIR/abkebpfd.te"
-install -m 0644 "$ROOT_DIR/bpf/abk_root.bpf.c" "$STAGING_DIR/abk_root.bpf.c"
-install -m 0644 "$ROOT_DIR/docs/architecture.md" "$STAGING_DIR/architecture.md"
-
-if [ -n "$ANYKERNEL3" ] && [ -d "$ANYKERNEL3" ]; then
-  mkdir -p "$ANYKERNEL3/tools/abk-ebpf-root"
-  install -m 0755 "$ROOT_DIR/daemon/abkebpfd.sh" "$ANYKERNEL3/tools/abk-ebpf-root/abkebpfd"
-  install -m 0755 "$ROOT_DIR/daemon/abksu.sh" "$ANYKERNEL3/tools/abk-ebpf-root/abksu"
-  install -m 0644 "$ROOT_DIR/init/abkebpfd.rc" "$ANYKERNEL3/tools/abk-ebpf-root/abkebpfd.rc"
-  install -m 0644 "$ROOT_DIR/sepolicy/abkebpfd.te" "$ANYKERNEL3/tools/abk-ebpf-root/abkebpfd.te"
-  install -m 0644 "$ROOT_DIR/bpf/abk_root.bpf.c" "$ANYKERNEL3/tools/abk-ebpf-root/abk_root.bpf.c"
-  install -m 0644 "$ROOT_DIR/docs/architecture.md" "$ANYKERNEL3/tools/abk-ebpf-root/README.txt"
-fi
 
 echo "ABK eBPF root PoC injected into $COMMON_ROOT"
