@@ -8,6 +8,8 @@ bootable kernel. `eBPF_Hook` only changes the kernel source tree.
 
 - `/dev/abk_ebpf_rootctl` is the only runtime interface.
 - The experiment stays audit-only and does not mutate credentials.
+- grant entries are capability-scoped metadata for a privileged ABK broker,
+  not a direct userspace root handoff
 - eBPF sample code is staged for later manual loading; it is never auto-loaded.
 - The repository never installs `/system` payloads.
 
@@ -27,6 +29,16 @@ bootable kernel. `eBPF_Hook` only changes the kernel source tree.
 - `L3` isolates the grant storage and ioctl complexity from the registration path.
 - `L4` keeps BPF assets separate so kernel boot and userspace loading can be
   validated independently.
+
+## Privileged App Model
+
+- untrusted apps should never receive a generic root shell or raw ioctl access
+- a privileged ABK broker should verify caller UID, package name, and signing
+  certificate before exposing any narrow RPC
+- kernel grant storage is only a fast policy cache and audit source; package and
+  certificate validation must still happen in userspace
+- capability bits should stay read-oriented by default, while mutating actions
+  remain behind explicit manager-side confirmation
 
 ## Device Baseline
 

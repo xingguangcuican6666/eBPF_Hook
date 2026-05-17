@@ -47,6 +47,13 @@ static bool abk_grant_matches(const struct abk_ebpf_root_grant *grant, kuid_t ui
 	return true;
 }
 
+static u64 abk_grant_effective_caps(const struct abk_ebpf_root_grant *grant)
+{
+	if (grant->capability_mask != 0)
+		return grant->capability_mask;
+	return ABK_EBPF_ROOT_CAP_BROKER_CLIENT;
+}
+
 static void abk_prune_expired_locked(void)
 {
 	unsigned int i, dst = 0;
@@ -75,21 +82,26 @@ static void abk_fill_status(struct abk_ebpf_root_status *status)
 	status->grant_count = abk_grant_count;
 }
 
-bool abk_bpf_is_granted(kuid_t uid, const char *comm)
+u64 abk_bpf_capability_mask(kuid_t uid, const char *comm)
 {
 	unsigned int i;
-	bool allowed = false;
+	u64 mask = 0;
 
 	mutex_lock(&abk_grants_lock);
 	abk_prune_expired_locked();
 	for (i = 0; i < abk_grant_count; ++i) {
 		if (!abk_grant_matches(&abk_grants[i], uid, comm))
 			continue;
-		allowed = true;
-		break;
+		mask |= abk_grant_effective_caps(&abk_grants[i]);
 	}
 	mutex_unlock(&abk_grants_lock);
-	return allowed;
+	return mask;
+}
+EXPORT_SYMBOL_GPL(abk_bpf_capability_mask);
+
+bool abk_bpf_is_granted(kuid_t uid, const char *comm)
+{
+	return abk_bpf_capability_mask(uid, comm) != 0;
 }
 EXPORT_SYMBOL_GPL(abk_bpf_is_granted);
 

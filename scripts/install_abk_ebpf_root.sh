@@ -104,6 +104,7 @@ enable_config() {
 stage_common_docs() {
   install -m 0644 "$ROOT_DIR/docs/architecture.md" "$STAGING_DOC_DIR/architecture.md"
   install -m 0644 "$ROOT_DIR/docs/device-baseline.md" "$STAGING_DOC_DIR/device-baseline.md"
+  install -m 0644 "$ROOT_DIR/docs/privileged-broker.md" "$STAGING_DOC_DIR/privileged-broker.md"
   install -m 0644 "$ROOT_DIR/include/abk_ebpf_root_uapi.h" "$STAGING_INCLUDE_DIR/abk_ebpf_root_uapi.h"
   install -m 0644 "$ROOT_DIR/module.conf" "$STAGING_META_DIR/module.conf"
   cat > "$STAGING_META_DIR/level.txt" <<EOF
@@ -122,7 +123,7 @@ cat > "$STAGING_DIR/README.txt" <<'EOF'
 ABK eBPF Hook staging assets
 
 - meta/level.txt: resolved injection level and stage
-- docs/*.md: design and device baseline notes
+- docs/*.md: design, device baseline, and broker notes
 - include/abk_ebpf_root_uapi.h: userspace ioctl definitions
 - bpf/abk_root.bpf.c: only present at L4
 

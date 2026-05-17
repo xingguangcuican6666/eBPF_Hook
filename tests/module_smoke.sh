@@ -29,6 +29,8 @@ run_level() {
   ABK_EBPF_HOOK_LEVEL="$level" \
   bash "$ROOT_DIR/setup.sh"
 
+  test -f "$tree/out/abk-ebpf-hook/docs/privileged-broker.md"
+
   case "$level" in
     L0)
       test ! -e "$tree/common/security/abk_ebpf_root"

@@ -10,8 +10,10 @@ repository only injects staged kernel-tree changes through `setup.sh`.
 
 - a layered `security/abk_ebpf_root/` kernel experiment
 - an audit-only `/dev/abk_ebpf_rootctl` control plane
+- capability-scoped grant metadata for an ABK-side privileged broker
 - a staged BPF sample source file at the highest integration level
 - no `/system` executables, no init rc, no SELinux payloads
+- no direct credential mutation or third-party app root handoff
 - no KernelSU or ABK Control compatibility logic
 
 ## ABK Usage
@@ -35,6 +37,13 @@ defaults to `L0`.
 - `L2`: enable a minimal built-in module with `GET_STATUS` only
 - `L3`: enable the full audit-only control plane with grant storage
 - `L4`: `L3` plus a staged BPF audit sample source file
+
+## Safe Userspace Delegation
+
+If ABK consumes this repository as an external module, keep privileged behavior
+inside a broker owned by ABK. External apps should receive only narrow,
+capability-scoped Binder RPC after package/signature verification instead of a
+generic `su` channel. See [docs/privileged-broker.md](docs/privileged-broker.md).
 
 ## Development
 
