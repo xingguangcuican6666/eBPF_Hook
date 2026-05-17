@@ -1,0 +1,49 @@
+name: Validate ABK External Module
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/module-validation.yml"
+      - "setup.sh"
+      - "module.conf"
+      - "scripts/**"
+      - "src/**"
+      - "include/**"
+      - "bpf/**"
+      - "docs/**"
+      - "tests/**"
+      - "README.md"
+  pull_request:
+    paths:
+      - ".github/workflows/module-validation.yml"
+      - "setup.sh"
+      - "module.conf"
+      - "scripts/**"
+      - "src/**"
+      - "include/**"
+      - "bpf/**"
+      - "docs/**"
+      - "tests/**"
+      - "README.md"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash -n setup.sh
+          bash -n scripts/install_abk_ebpf_root.sh
+          bash -n tests/module_smoke.sh
+
+      - name: Module smoke test
+        run: bash tests/module_smoke.sh
+
+      - name: Forbidden path check
+        run: |
+          ! rg -n 'prepare_creds|commit_creds|/system/bin|abkebpfd|abksu|CONFIG_ABK_CONTROL|KernelSU' \
+            src include scripts setup.sh tests module.conf

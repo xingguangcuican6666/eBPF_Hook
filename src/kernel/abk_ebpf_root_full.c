@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/timekeeping.h>
 #include <linux/uaccess.h>
@@ -108,68 +109,120 @@ static int abk_find_grant(const struct abk_ebpf_root_grant *grant)
 	return -ENOENT;
 }
 
-static long abk_ebpf_root_ioctl_locked(unsigned int cmd, unsigned long arg)
+static long abk_copy_grant_from_user(unsigned long arg, struct abk_ebpf_root_grant **grantp)
 {
-	struct abk_ebpf_root_grant grant;
-	struct abk_ebpf_root_grant_list list;
-	struct abk_ebpf_root_status status;
+	struct abk_ebpf_root_grant *grant;
+
+	grant = kzalloc(sizeof(*grant), GFP_KERNEL);
+	if (!grant)
+		return -ENOMEM;
+	if (copy_from_user(grant, (void __user *)arg, sizeof(*grant))) {
+		kfree(grant);
+		return -EFAULT;
+	}
+	abk_normalize_grant(grant);
+	*grantp = grant;
+	return 0;
+}
+
+static long abk_ioctl_add_grant(unsigned long arg)
+{
+	struct abk_ebpf_root_grant *grant;
+	long ret;
 	int index;
 
-	abk_prune_expired_locked();
-
-	switch (cmd) {
-	case ABK_EBPF_ROOT_IOC_ADD_GRANT:
-		if (copy_from_user(&grant, (void __user *)arg, sizeof(grant)))
-			return -EFAULT;
-		abk_normalize_grant(&grant);
-		if (grant.uid < 0 || !grant.package_name[0] || !grant.cert_sha256[0])
-			return -EINVAL;
-		index = abk_find_grant(&grant);
-		if (index >= 0) {
-			abk_grants[index] = grant;
-			return 0;
-		}
-		if (abk_grant_count >= ABK_EBPF_ROOT_MAX_GRANTS)
-			return -ENOSPC;
-		abk_grants[abk_grant_count++] = grant;
-		return 0;
-	case ABK_EBPF_ROOT_IOC_DEL_GRANT:
-		if (copy_from_user(&grant, (void __user *)arg, sizeof(grant)))
-			return -EFAULT;
-		index = abk_find_grant(&grant);
-		if (index < 0)
-			return index;
-		memmove(&abk_grants[index], &abk_grants[index + 1],
-			(abk_grant_count - index - 1) * sizeof(abk_grants[0]));
-		memset(&abk_grants[abk_grant_count - 1], 0, sizeof(abk_grants[0]));
-		abk_grant_count--;
-		return 0;
-	case ABK_EBPF_ROOT_IOC_LIST_GRANTS:
-		memset(&list, 0, sizeof(list));
-		list.count = abk_grant_count;
-		memcpy(list.grants, abk_grants, sizeof(abk_grants));
-		if (copy_to_user((void __user *)arg, &list, sizeof(list)))
-			return -EFAULT;
-		return 0;
-	case ABK_EBPF_ROOT_IOC_FLUSH_EXPIRED:
-		abk_prune_expired_locked();
-		return 0;
-	case ABK_EBPF_ROOT_IOC_GET_STATUS:
-		abk_fill_status(&status);
-		if (copy_to_user((void __user *)arg, &status, sizeof(status)))
-			return -EFAULT;
-		return 0;
-	default:
-		return -ENOTTY;
+	ret = abk_copy_grant_from_user(arg, &grant);
+	if (ret)
+		return ret;
+	if (grant->uid < 0 || !grant->package_name[0] || !grant->cert_sha256[0]) {
+		kfree(grant);
+		return -EINVAL;
 	}
+
+	index = abk_find_grant(grant);
+	if (index >= 0) {
+		abk_grants[index] = *grant;
+		kfree(grant);
+		return 0;
+	}
+	if (abk_grant_count >= ABK_EBPF_ROOT_MAX_GRANTS) {
+		kfree(grant);
+		return -ENOSPC;
+	}
+
+	abk_grants[abk_grant_count++] = *grant;
+	kfree(grant);
+	return 0;
+}
+
+static long abk_ioctl_del_grant(unsigned long arg)
+{
+	struct abk_ebpf_root_grant *grant;
+	long ret;
+	int index;
+
+	ret = abk_copy_grant_from_user(arg, &grant);
+	if (ret)
+		return ret;
+
+	index = abk_find_grant(grant);
+	kfree(grant);
+	if (index < 0)
+		return index;
+
+	memmove(&abk_grants[index], &abk_grants[index + 1],
+		(abk_grant_count - index - 1) * sizeof(abk_grants[0]));
+	memset(&abk_grants[abk_grant_count - 1], 0, sizeof(abk_grants[0]));
+	abk_grant_count--;
+	return 0;
+}
+
+static long abk_ioctl_list_grants(unsigned long arg)
+{
+	struct abk_ebpf_root_grant_list *list;
+	long ret = 0;
+
+	list = kzalloc(sizeof(*list), GFP_KERNEL);
+	if (!list)
+		return -ENOMEM;
+
+	list->count = abk_grant_count;
+	memcpy(list->grants, abk_grants, sizeof(abk_grants));
+	if (copy_to_user((void __user *)arg, list, sizeof(*list)))
+		ret = -EFAULT;
+
+	kfree(list);
+	return ret;
 }
 
 long abk_ebpf_root_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
+	struct abk_ebpf_root_status status;
 	long ret;
 
 	mutex_lock(&abk_grants_lock);
-	ret = abk_ebpf_root_ioctl_locked(cmd, arg);
+	abk_prune_expired_locked();
+	switch (cmd) {
+	case ABK_EBPF_ROOT_IOC_ADD_GRANT:
+		ret = abk_ioctl_add_grant(arg);
+		break;
+	case ABK_EBPF_ROOT_IOC_DEL_GRANT:
+		ret = abk_ioctl_del_grant(arg);
+		break;
+	case ABK_EBPF_ROOT_IOC_LIST_GRANTS:
+		ret = abk_ioctl_list_grants(arg);
+		break;
+	case ABK_EBPF_ROOT_IOC_FLUSH_EXPIRED:
+		ret = 0;
+		break;
+	case ABK_EBPF_ROOT_IOC_GET_STATUS:
+		abk_fill_status(&status);
+		ret = copy_to_user((void __user *)arg, &status, sizeof(status)) ? -EFAULT : 0;
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
 	mutex_unlock(&abk_grants_lock);
 	return ret;
 }
@@ -203,7 +256,7 @@ static int __init abk_ebpf_root_init(void)
 	if (ret)
 		return ret;
 
-	pr_info("%s: audit-only control plane registered\n", ABK_EBPF_ROOT_TAG);
+	pr_info("%s: full audit-only control plane registered\n", ABK_EBPF_ROOT_TAG);
 	return 0;
 }
 
@@ -217,4 +270,4 @@ module_exit(abk_ebpf_root_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Codex");
-MODULE_DESCRIPTION("ABK eBPF audit-only /dev control plane");
+MODULE_DESCRIPTION("ABK eBPF full audit-only /dev control plane");

@@ -13,6 +13,6 @@ Observed from the connected device over adb root:
 
 Implication:
 
-- do not treat a hand-made raw `boot.img` from CI as the preferred flash path
-- preserve the existing boot chain structure
-- use AnyKernel3 as the primary delivery path while iterating on the kernel
+- ABK should stay responsible for bootable output generation
+- `eBPF_Hook` should only inject kernel tree changes
+- regression testing must be done level-by-level (`L0` -> `L4`)

@@ -1,37 +1,34 @@
-# eBPF Root PoC
+# eBPF Hook Architecture
 
-This repository builds a narrow proof of concept for Android 14 GKI `6.1.75`
-with security patch level `2024-05`.
+This repository is designed to be consumed by ABK through the custom external
+module mechanism. ABK remains the source of truth for building and packaging a
+bootable kernel. `eBPF_Hook` only changes the kernel source tree.
 
 ## Design
 
-- The in-kernel module is a `/dev` control plane, not a root engine.
-- eBPF owns the policy and audit hooks.
-- `/dev/abk_ebpf_rootctl` is the only grant management interface.
-- Grants are bound to `uid + package_name + cert_sha256`.
-- v1 is audit-only and does not change task credentials.
+- `/dev/abk_ebpf_rootctl` is the only runtime interface.
+- The experiment stays audit-only and does not mutate credentials.
+- eBPF sample code is staged for later manual loading; it is never auto-loaded.
+- The repository never installs `/system` payloads.
 
-## Build path
+## Integration Levels
 
-- GitHub Actions syncs the Android common kernel source for `android14-6.1-2024-05`.
-- The local setup script copies kernel files, enables Kconfig, and stages
-  BPF source, UAPI headers, and notes into the build output.
-- Delivery stays aligned with the ABK baseline: AnyKernel3 is the primary flash
-  artifact, not a simplified raw `boot.img`.
+- `L0`: no-op integration, used to validate that the ABK external module path
+  itself does not cause boot regressions.
+- `L1`: source-only integration; Kconfig and Makefile are wired, but the module
+  remains disabled in defconfig.
+- `L2`: minimal built-in integration; only `GET_STATUS` is supported.
+- `L3`: full audit-only control plane; grant add/delete/list paths are enabled.
+- `L4`: full control plane plus staged BPF sample source.
 
-## Device baseline
+## Why The Split Exists
 
-- The connected device target uses a split boot chain:
-  - `boot_a` = `100663296` bytes
-  - `init_boot_a` = `8388608` bytes
-  - `vendor_boot_a` = `100663296` bytes
-- `boot_a` and `init_boot_a` both use Android boot header version `4`.
-- `vendor_boot_a` uses the `VNDRBOOT` vendor boot format.
-- Because of that layout, kernel delivery should preserve the existing boot
-  structure instead of assuming a standalone CI-generated `boot.img` is safe.
+- `L2` exists to test whether a tiny built-in `miscdevice` alone boots safely.
+- `L3` isolates the grant storage and ioctl complexity from the registration path.
+- `L4` keeps BPF assets separate so kernel boot and userspace loading can be
+  validated independently.
 
-## Limits of this PoC
+## Device Baseline
 
-- The BPF program is a policy/audit scaffold rather than a complete grant path.
-- No executables are added to `/system`.
-- No KernelSU compatibility or root hiding is provided.
+The current target device baseline still matters because ABK packaging must stay
+compatible with its split boot chain. See [device-baseline.md](device-baseline.md).

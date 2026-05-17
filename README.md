@@ -1,29 +1,52 @@
-# eBPF_Hook
+# eBPF Hook
 
-Android 14 / GKI 6.1.75 audit-only eBPF root PoC.
+`eBPF_Hook` is an **ABK custom external module** repository.
 
-This repository builds a boot-safe kernel experiment that:
+It is not a standalone kernel build repo anymore. ABK is responsible for the
+bootable Android 14 / 6.1.75 packaging baseline and flashable outputs. This
+repository only injects staged kernel-tree changes through `setup.sh`.
 
-- adds a minimal in-kernel control plane under `security/abk_ebpf_root/`
-- exposes grant management only through `/dev/abk_ebpf_rootctl`
-- carries a sample BPF LSM program for audit and grant matching scaffolding
-- avoids KernelSU compatibility, `/system` payloads, and boot-time helpers
-- keeps ABK-style AnyKernel3 packaging as the primary flash path
+## What It Provides
 
-## Entry points
+- a layered `security/abk_ebpf_root/` kernel experiment
+- an audit-only `/dev/abk_ebpf_rootctl` control plane
+- a staged BPF sample source file at the highest integration level
+- no `/system` executables, no init rc, no SELinux payloads
+- no KernelSU or ABK Control compatibility logic
 
-- Workflow: `.github/workflows/main.yml`
-- Local build injection module: `setup.sh`
-- Kernel patch logic: `scripts/install_abk_ebpf_root.sh`
-- BPF sample: `bpf/abk_root.bpf.c`
-- Architecture notes: `docs/architecture.md`
+## ABK Usage
 
-## Notes
+Use this repository as an ABK external module in the `after_patch` stage:
 
-- The first target is fixed to `android14-6.1.75` with patch level `2024-05`.
-- The in-kernel component is audit-only and does not mutate credentials.
-- eBPF is used for hook placement, audit, and future grant matching.
-- No executables are installed to `/system`.
-- Direct CI-generated `boot.img` is intentionally not the primary delivery format.
-- The known-good device baseline is a split boot chain with `boot_a`, `init_boot_a`,
-  and `vendor_boot_a`, so packaging must preserve that structure.
+```text
+https://github.com/xingguangcuican6666/eBPF_Hook.git;after_patch
+```
+
+`before_build` is intentionally ignored.
+
+## Injection Levels
+
+The module supports five levels selected by `ABK_EBPF_HOOK_LEVEL` when the
+caller can inject custom environment variables. If not provided, `module.conf`
+defaults to `L0`.
+
+- `L0`: no-op; only emit staging metadata and docs
+- `L1`: copy source and wire Kconfig/Makefile, but do not enable the module
+- `L2`: enable a minimal built-in module with `GET_STATUS` only
+- `L3`: enable the full audit-only control plane with grant storage
+- `L4`: `L3` plus a staged BPF audit sample source file
+
+## Development
+
+- Entry point: `setup.sh`
+- Installer: `scripts/install_abk_ebpf_root.sh`
+- Minimal kernel source: `src/kernel/abk_ebpf_root_minimal.c`
+- Full kernel source: `src/kernel/abk_ebpf_root_full.c`
+- Smoke test: `tests/module_smoke.sh`
+
+Run local checks:
+
+```sh
+bash -n setup.sh scripts/install_abk_ebpf_root.sh tests/module_smoke.sh
+bash tests/module_smoke.sh
+```
