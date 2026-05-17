@@ -1,0 +1,199 @@
+name: Kernel Build - Android 14 (6.1.75)
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernelsu_variant:
+        description: "KernelSU variant"
+        required: true
+        type: choice
+        options:
+          - None
+          - Official
+          - SukiSU
+          - ReSukiSU
+        default: None
+      kernelsu_branch:
+        description: "KernelSU branch"
+        required: true
+        type: choice
+        options:
+          - Stable(标准)
+          - Dev(开发)
+          - Custom(自定义)
+        default: Stable(标准)
+      custom_ref:
+        description: "Custom KSU ref"
+        required: false
+        type: string
+      version:
+        description: "Custom version suffix"
+        required: false
+        type: string
+        default: "ebpf-root-poc"
+      build_time:
+        description: "Build timestamp; empty or N uses current UTC"
+        required: false
+        type: string
+        default: "N"
+      use_zram:
+        description: "Enable ZRAM patch stack"
+        required: true
+        type: boolean
+        default: false
+      use_bbg:
+        description: "Enable BBG"
+        required: true
+        type: boolean
+        default: false
+      use_ddk:
+        description: "Enable DDK"
+        required: true
+        type: boolean
+        default: false
+      use_ntsync:
+        description: "Enable NTsync"
+        required: true
+        type: boolean
+        default: false
+      use_networking:
+        description: "Enable networking patch stack"
+        required: true
+        type: boolean
+        default: false
+      use_kpm:
+        description: "Enable KPM"
+        required: true
+        type: boolean
+        default: false
+      use_rekernel:
+        description: "Enable Re-Kernel"
+        required: false
+        type: boolean
+        default: false
+      cancel_susfs:
+        description: "Disable SUSFS"
+        required: true
+        type: boolean
+        default: true
+      manager_package:
+        description: "Trusted manager package"
+        required: false
+        type: string
+        default: "com.abk.kernel"
+      manager_cert_size:
+        description: "Trusted manager cert size"
+        required: false
+        type: string
+        default: "1407"
+      manager_cert_sha256:
+        description: "Trusted manager cert sha256"
+        required: false
+        type: string
+        default: "34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16"
+      include_abk_control_module:
+        description: "Also inject ABK_control_module before build"
+        required: false
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      kernelsu_variant:
+        required: true
+        type: string
+      kernelsu_branch:
+        required: true
+        type: string
+      custom_ref:
+        required: false
+        type: string
+      version:
+        required: false
+        type: string
+      build_time:
+        required: false
+        type: string
+        default: "N"
+      use_zram:
+        required: true
+        type: boolean
+      use_bbg:
+        required: true
+        type: boolean
+      use_ddk:
+        required: false
+        type: boolean
+        default: false
+      use_ntsync:
+        required: true
+        type: boolean
+        default: false
+      use_networking:
+        required: true
+        type: boolean
+        default: false
+      use_kpm:
+        required: true
+        type: boolean
+        default: false
+      use_rekernel:
+        required: false
+        type: boolean
+        default: false
+      cancel_susfs:
+        required: false
+        type: boolean
+      manager_package:
+        required: false
+        type: string
+        default: "com.abk.kernel"
+      manager_cert_size:
+        required: false
+        type: string
+        default: "1407"
+      manager_cert_sha256:
+        required: false
+        type: string
+        default: "34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16"
+      include_abk_control_module:
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-kernel-a14-6-1-75:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      android_version: "android14"
+      kernel_version: "6.1"
+      sub_level: "75"
+      os_patch_level: "2024-05"
+      ksu_variant: ${{ inputs.kernelsu_variant }}
+      ksu_branch: ${{ inputs.kernelsu_branch }}
+      custom_ref: ${{ inputs.custom_ref || '' }}
+      version: ${{ inputs.version || 'ebpf-root-poc' }}
+      build_time: ${{ inputs.build_time || 'N' }}
+      use_zram: ${{ inputs.use_zram }}
+      use_bbg: ${{ inputs.use_bbg }}
+      use_ddk: ${{ inputs.use_ddk }}
+      use_ntsync: ${{ inputs.use_ntsync }}
+      use_networking: ${{ inputs.use_networking }}
+      use_kpm: ${{ inputs.use_kpm }}
+      use_rekernel: ${{ inputs.use_rekernel || false }}
+      supp_op: false
+      enable_susfs: ${{ !inputs.cancel_susfs }}
+      virtualization_support: "off"
+      zram_full_algo: false
+      zram_extra_algos: ""
+      kpm_password: ""
+      use_custom_external_modules: true
+      custom_external_modules: ${{ inputs.include_abk_control_module && format('{0}/{1};after_patch|https://github.com/xingguangcuican6666/ABK_control_module.git;before_build', github.server_url, github.repository) || format('{0}/{1};after_patch', github.server_url, github.repository) }}
+      manager_package: ${{ inputs.manager_package || 'com.abk.kernel' }}
+      manager_cert_size: ${{ inputs.manager_cert_size || '1407' }}
+      manager_cert_sha256: ${{ inputs.manager_cert_sha256 || '34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16' }}
+      upload_aux_artifacts: true

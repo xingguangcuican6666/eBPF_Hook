@@ -1,0 +1,103 @@
+name: Build Android 14 eBPF Root PoC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernelsu_variant:
+        description: "KernelSU variant"
+        type: choice
+        options:
+          - None
+          - Official
+          - SukiSU
+          - ReSukiSU
+        default: None
+      kernelsu_branch:
+        description: "KernelSU branch"
+        type: choice
+        options:
+          - Stable(标准)
+          - Dev(开发)
+          - Custom(自定义)
+        default: Stable(标准)
+      custom_ref:
+        description: "Custom KSU ref when kernelsu_branch=Custom(自定义)"
+        type: string
+        default: ""
+        required: false
+      version:
+        description: "Custom version suffix"
+        type: string
+        default: "ebpf-root-poc"
+        required: false
+      build_time:
+        description: "Build timestamp; empty or N uses current UTC"
+        type: string
+        default: "N"
+        required: false
+      use_zram:
+        description: "Enable ZRAM patch stack"
+        type: boolean
+        default: false
+      use_ntsync:
+        description: "Enable NTsync"
+        type: boolean
+        default: false
+      use_networking:
+        description: "Enable IPSet + BBR"
+        type: boolean
+        default: false
+      use_rekernel:
+        description: "Enable Re-Kernel"
+        type: boolean
+        default: false
+      manager_package:
+        description: "Trusted manager package"
+        type: string
+        default: "com.abk.kernel"
+        required: false
+      manager_cert_size:
+        description: "Trusted manager cert size"
+        type: string
+        default: "1407"
+        required: false
+      manager_cert_sha256:
+        description: "Trusted manager cert sha256"
+        type: string
+        default: "34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16"
+        required: false
+      include_abk_control_module:
+        description: "Also inject ABK_control_module before build"
+        type: boolean
+        default: true
+
+jobs:
+  build-a14-6-1-75:
+    uses: ./.github/workflows/kernel-a14-6-1.yml
+    secrets: inherit
+    with:
+      kernelsu_variant: ${{ inputs.kernelsu_variant }}
+      kernelsu_branch: ${{ inputs.kernelsu_branch }}
+      custom_ref: ${{ inputs.custom_ref || '' }}
+      version: ${{ inputs.version || 'ebpf-root-poc' }}
+      build_time: ${{ inputs.build_time || 'N' }}
+      use_zram: ${{ inputs.use_zram || false }}
+      use_bbg: false
+      use_ddk: false
+      use_ntsync: ${{ inputs.use_ntsync || false }}
+      use_networking: ${{ inputs.use_networking || false }}
+      use_kpm: false
+      use_rekernel: ${{ inputs.use_rekernel || false }}
+      cancel_susfs: true
+      manager_package: ${{ inputs.manager_package || 'com.abk.kernel' }}
+      manager_cert_size: ${{ inputs.manager_cert_size || '1407' }}
+      manager_cert_sha256: ${{ inputs.manager_cert_sha256 || '34e5e843952277759603cd0f949770b24c868530d80d7baeff08776a7e132b16' }}
+      include_abk_control_module: ${{ inputs.include_abk_control_module }}

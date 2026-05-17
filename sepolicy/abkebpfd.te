@@ -1,0 +1,10 @@
+type abkebpfd, domain;
+type abkebpfd_exec, exec_type, file_type, system_file_type;
+
+init_daemon_domain(abkebpfd)
+
+allow abkebpfd self:capability { setuid setgid sys_admin };
+allow abkebpfd fs_bpf:filesystem { getattr mount };
+allow abkebpfd bpf:map { create read write getattr setattr };
+allow abkebpfd bpf:prog { load map_create };
+allow abkebpfd device:chr_file rw_file_perms;
