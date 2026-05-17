@@ -75,9 +75,6 @@ jobs:
             echo "ARTIFACT_PREFIX=$artifact_prefix"
             echo "ANYKERNEL3=$GITHUB_WORKSPACE/AnyKernel3"
             echo "REPO=$GITHUB_WORKSPACE/git-repo/repo"
-            echo "AVBTOOL=$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/bin/avbtool"
-            echo "MKBOOTIMG=$GITHUB_WORKSPACE/mkbootimg/mkbootimg.py"
-            echo "BOOT_SIGN_KEY_PATH=$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem"
           } >> "$GITHUB_ENV"
 
           echo "$GITHUB_WORKSPACE/git-repo" >> "$GITHUB_PATH"
@@ -86,16 +83,6 @@ jobs:
         run: |
           ccache --max-size=2G
           echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
-
-      - name: Download packaging tools
-        run: |
-          set -euo pipefail
-
-          git clone https://android.googlesource.com/kernel/prebuilts/build-tools \
-            -b main-kernel-build-2024 --depth 1 kernel-build-tools
-          git clone https://android.googlesource.com/platform/system/tools/mkbootimg \
-            -b main-kernel-build-2024 --depth 1 mkbootimg
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 > "$BOOT_SIGN_KEY_PATH"
 
       - name: Clone AnyKernel3
         run: |
@@ -191,10 +178,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p artifacts bootimgs
+          mkdir -p artifacts
 
           cp "$KERNEL_ROOT/$DIST_DIR/Image" artifacts/
-          cp "$KERNEL_ROOT/$DIST_DIR/Image" bootimgs/
 
           if [ -f "$KERNEL_ROOT/$DIST_DIR/Image.lz4" ]; then
             cp "$KERNEL_ROOT/$DIST_DIR/Image.lz4" artifacts/
@@ -203,6 +189,31 @@ jobs:
           if [ -d "$KERNEL_ROOT/out/abk-ebpf-root" ]; then
             cp -r "$KERNEL_ROOT/out/abk-ebpf-root" artifacts/abk-ebpf-root
           fi
+
+          cat > artifacts/FLASHING_NOTES.txt <<'EOF'
+          Flashing notes for zorn / Android 14 / GKI 6.1.75
+
+          This device uses a split boot chain:
+          - boot_a: 100663296 bytes
+          - init_boot_a: 8388608 bytes
+          - vendor_boot_a: 100663296 bytes
+          - boot header version: 4
+          - vendor_boot header magic: VNDRBOOT
+
+          Use the AnyKernel3 package as the primary flash path.
+          Do not treat a raw CI-generated boot.img as the preferred install path
+          on this device. The purpose of this repository is to preserve the ABK
+          boot packaging baseline while changing only the kernel payload.
+          EOF
+
+          {
+            echo "### Flashing baseline"
+            echo
+            echo "- Device target: zorn / Android 14 / 6.1.75"
+            echo "- Keep ABK-style AnyKernel3 as the primary flash path"
+            echo "- boot/init_boot/vendor_boot must stay structurally compatible"
+            echo "- No /system payloads are included"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package AnyKernel3
         run: |
@@ -213,21 +224,6 @@ jobs:
             cd "$ANYKERNEL3"
             zip -r "$GITHUB_WORKSPACE/artifacts/$ARTIFACT_PREFIX-AnyKernel3.zip" ./*
           )
-
-      - name: Build boot image
-        working-directory: bootimgs
-        run: |
-          set -euo pipefail
-
-          python3 "$MKBOOTIMG" --header_version 4 --kernel Image --output boot.img
-          "$AVBTOOL" add_hash_footer \
-            --partition_name boot \
-            --partition_size $((64 * 1024 * 1024)) \
-            --image boot.img \
-            --algorithm SHA256_RSA2048 \
-            --key "$BOOT_SIGN_KEY_PATH"
-
-          cp boot.img "$GITHUB_WORKSPACE/artifacts/$ARTIFACT_PREFIX-boot.img"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

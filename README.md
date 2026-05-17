@@ -8,6 +8,7 @@ This repository builds a boot-safe kernel experiment that:
 - exposes grant management only through `/dev/abk_ebpf_rootctl`
 - carries a sample BPF LSM program for audit and grant matching scaffolding
 - avoids KernelSU compatibility, `/system` payloads, and boot-time helpers
+- keeps ABK-style AnyKernel3 packaging as the primary flash path
 
 ## Entry points
 
@@ -23,3 +24,6 @@ This repository builds a boot-safe kernel experiment that:
 - The in-kernel component is audit-only and does not mutate credentials.
 - eBPF is used for hook placement, audit, and future grant matching.
 - No executables are installed to `/system`.
+- Direct CI-generated `boot.img` is intentionally not the primary delivery format.
+- The known-good device baseline is a split boot chain with `boot_a`, `init_boot_a`,
+  and `vendor_boot_a`, so packaging must preserve that structure.
